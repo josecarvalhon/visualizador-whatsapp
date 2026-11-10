@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visualizador de WhatsApp</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="lateral">
+      <header class="lateral-topo">
+        <h1>Conversas</h1>
+        <span class="contador" id="contador"></span>
+      </header>
+      <div class="busca">
+        <input id="busca" type="search" placeholder="Pesquisar conversa" autocomplete="off">
+      </div>
+      <ul class="lista" id="lista"></ul>
+    </aside>
+
+    <main class="painel">
+      <div class="vazio" id="vazio">
+        <h2>Visualizador de WhatsApp</h2>
+        <p>Selecione uma conversa à esquerda.</p>
+      </div>
+      <section class="chat" id="chat" hidden>
+        <header class="chat-topo">
+          <button class="voltar" id="voltar" aria-label="Voltar">←</button>
+          <div class="avatar" id="chat-avatar"></div>
+          <div>
+            <div class="chat-nome" id="chat-nome"></div>
+            <div class="chat-info" id="chat-info"></div>
+          </div>
+        </header>
+        <div class="mensagens" id="mensagens"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="ampliacao" id="ampliacao" hidden>
+    <img id="ampliacao-img" alt="">
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
