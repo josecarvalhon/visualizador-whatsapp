@@ -10,11 +10,14 @@
   <div class="app" id="app">
     <aside class="lateral">
       <header class="lateral-topo">
-        <h1>Conversas</h1>
-        <span class="contador" id="contador"></span>
+        <div>
+          <h1>Conversas</h1>
+          <span class="contador" id="contador"></span>
+        </div>
+        <a class="botao-topo" href="/estatisticas" target="_blank" rel="noopener" title="Estatísticas do backup inteiro (abre em nova aba)">📊 Estatísticas</a>
       </header>
       <div class="busca">
-        <input id="busca" type="search" placeholder="Pesquisar conversa" autocomplete="off">
+        <input id="busca" type="search" placeholder="Pesquisar conversa ou mensagem" autocomplete="off">
       </div>
       <ul class="lista" id="lista"></ul>
     </aside>
@@ -27,14 +30,33 @@
       <section class="chat" id="chat" hidden>
         <header class="chat-topo">
           <button class="voltar" id="voltar" aria-label="Voltar">←</button>
-          <div class="avatar" id="chat-avatar"></div>
-          <div>
-            <div class="chat-nome" id="chat-nome"></div>
-            <div class="chat-info" id="chat-info"></div>
-          </div>
+          <button class="chat-titulo" id="chat-titulo" title="Dados da conversa: fotos, áudios, links e participantes">
+            <span class="avatar" id="chat-avatar"></span>
+            <span class="chat-textos">
+              <span class="chat-nome" id="chat-nome"></span>
+              <span class="chat-info" id="chat-info"></span>
+            </span>
+          </button>
+          <button class="icone" id="abrir-busca" title="Buscar nesta conversa" aria-label="Buscar nesta conversa">🔍</button>
+          <a class="exportar" id="exportar" target="_blank" rel="noopener" title="Exportar conversa em PDF">PDF</a>
         </header>
+        <div class="barra-busca" id="barra-busca" hidden>
+          <input id="busca-chat" type="search" placeholder="Buscar nesta conversa" autocomplete="off">
+          <span class="busca-contador" id="busca-contador"></span>
+          <button class="icone" id="busca-anterior" title="Anterior (Enter)" aria-label="Resultado anterior">▲</button>
+          <button class="icone" id="busca-proxima" title="Próxima (Shift+Enter)" aria-label="Próximo resultado">▼</button>
+          <button class="icone" id="fechar-busca" title="Fechar (Esc)" aria-label="Fechar busca">✕</button>
+        </div>
         <div class="mensagens" id="mensagens"></div>
       </section>
+
+      <aside class="dados" id="dados" hidden>
+        <header class="dados-topo">
+          <button class="icone" id="fechar-dados" aria-label="Fechar">✕</button>
+          <span>Dados da conversa</span>
+        </header>
+        <div class="dados-corpo" id="dados-corpo"></div>
+      </aside>
     </main>
   </div>
 

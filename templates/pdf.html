@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>{{ conversa.nome }} — conversa do WhatsApp</title>
+  <style>
+    @page { size: A4; margin: 14mm 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #111b21;
+      font: 10.5pt/1.4 "Segoe UI", Helvetica, Arial, sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .aviso-tela {
+      position: sticky; top: 0;
+      padding: 10px 16px;
+      background: #00a884; color: #fff; text-align: center;
+    }
+    .aviso-tela button {
+      margin-left: 12px; padding: 4px 12px;
+      border: 0; border-radius: 4px; background: #fff; color: #00a884; font: inherit; cursor: pointer;
+    }
+    .folha { max-width: 760px; margin: 0 auto; padding: 16px; }
+    header { border-bottom: 2px solid #00a884; padding-bottom: 8px; margin-bottom: 12px; }
+    h1 { margin: 0 0 4px; font-size: 16pt; }
+    .meta { color: #667781; font-size: 9pt; }
+    .separador {
+      text-align: center; margin: 12px 0 6px;
+      color: #667781; font-size: 9pt; break-after: avoid;
+    }
+    .separador span { background: #f0f2f5; padding: 3px 10px; border-radius: 6px; }
+    .evento { text-align: center; color: #667781; font-size: 9pt; font-style: italic; margin: 4px 0; }
+    .linha { display: flex; margin: 2px 0; break-inside: avoid; }
+    .linha.enviada { justify-content: flex-end; }
+    .balao {
+      max-width: 78%;
+      padding: 4px 8px 5px;
+      border-radius: 6px;
+      background: #f0f2f5;
+      word-wrap: break-word;
+    }
+    .texto { white-space: pre-wrap; }
+    .enviada .balao { background: #d9fdd3; }
+    .remetente { font-weight: 600; font-size: 9pt; color: #00806a; }
+    .hora { float: right; margin: 3px 0 0 10px; color: #667781; font-size: 8pt; }
+    .midia { color: #667781; font-style: italic; }
+    img { display: block; max-width: 260px; max-height: 260px; border-radius: 4px; margin: 2px 0; }
+    a { color: #027eb5; word-break: break-all; }
+    @media print { .aviso-tela { display: none; } .folha { padding: 0; max-width: none; } }
+  </style>
+</head>
+<body>
+  <div class="aviso-tela">
+    Para salvar, escolha <strong>“Salvar como PDF”</strong> no destino da impressão.
+    <button onclick="window.print()">Imprimir / salvar PDF</button>
+  </div>
+
+  <div class="folha">
+    <header>
+      <h1>{{ conversa.nome }}</h1>
+      <div class="meta">
+        {{ "Grupo · " if conversa.grupo }}{{ conversa.total }} mensagens{{ " · " ~ periodo if periodo }}<br>
+        Exportado em {{ exportado_em }}. Horários com “~” são aproximados (data truncada no backup).
+      </div>
+    </header>
+
+    {% for m in itens %}
+      {% if m.separador %}
+        <div class="separador"><span>{{ m.separador }}</span></div>
+      {% elif m.tipo in ("evento", "sistema") %}
+        <div class="evento">{{ m.texto }}</div>
+      {% else %}
+        <div class="linha{{ ' enviada' if m.de_mim }}">
+          <div class="balao">
+            {%- if conversa.grupo and not m.de_mim %}<div class="remetente">{{ m.remetente }}</div>{% endif -%}
+            {%- if m.tipo == "imagem" and m.midia -%}
+              <img src="{{ url_for('midia', caminho=m.midia) }}" alt="Foto">
+            {%- elif m.tipo == "imagem" -%}
+              <span class="midia">📷 Foto (não disponível no backup)</span>
+            {%- elif m.tipo == "video" -%}
+              <span class="midia">🎥 Vídeo{{ " (" ~ m.duracao_texto ~ ")" if m.duracao_texto }}</span>
+            {%- elif m.tipo == "audio" -%}
+              <span class="midia">🎤 Áudio{{ " (" ~ m.duracao_texto ~ ")" if m.duracao_texto }}</span>
+            {%- elif m.tipo == "link" -%}
+              {% if m.legenda %}<strong>{{ m.legenda }}</strong><br>{% endif %}
+              {%- if m.url %}<a href="{{ m.url }}">{{ m.url }}</a>{% endif %}
+              {%- if m.texto and m.texto != m.url %}<div class="texto">{{ m.texto }}</div>{% endif -%}
+            {%- elif m.tipo == "localizacao" -%}
+              📍 Localização{% if m.latitude is not none %} ({{ "%.5f"|format(m.latitude) }}, {{ "%.5f"|format(m.longitude) }}){% endif %}
+            {%- elif m.tipo == "contato" -%}
+              👤 Contato: {{ m.texto }}
+            {%- endif -%}
+            {%- if m.tipo in ("imagem", "video", "audio") and m.legenda %}<div class="texto">{{ m.legenda }}</div>{% endif -%}
+            {%- if m.tipo not in ("link", "contato") and m.texto %}<div class="texto">{{ m.texto }}</div>{% endif -%}
+            <span class="hora">{{ m.hora }}</span>
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <script>
+    // Abre a impressão quando as fotos terminarem de carregar
+    window.addEventListener("load", () => setTimeout(() => window.print(), 300));
+  </script>
+</body>
+</html>

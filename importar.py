@@ -53,9 +53,23 @@ CREATE TABLE mensagens (
     legenda TEXT,
     url TEXT,
     latitude REAL,
-    longitude REAL
+    longitude REAL,
+    duracao INTEGER
 );
 CREATE INDEX idx_mensagens_conversa ON mensagens (conversa_id, ordem);
+CREATE TABLE participantes (
+    conversa_id INTEGER NOT NULL REFERENCES conversas(id),
+    nome TEXT NOT NULL,
+    admin INTEGER NOT NULL,
+    ativo INTEGER NOT NULL
+);
+CREATE INDEX idx_participantes_conversa ON participantes (conversa_id);
+-- Busca sem diferenciar maiúsculas nem acentos
+CREATE VIRTUAL TABLE busca USING fts5(
+    texto, legenda,
+    content = 'mensagens', content_rowid = 'id',
+    tokenize = 'unicode61 remove_diacritics 2'
+);
 """
 
 
@@ -144,6 +158,15 @@ def descrever_evento(msg, contatos):
     return "Evento do grupo"
 
 
+def nome_membro(membro, contatos):
+    return (
+        membro["ZCONTACTNAME"]
+        or membro["ZFIRSTNAME"]
+        or nome_por_jid(membro["ZMEMBERJID"], contatos)
+        or "+" + chave_jid(membro["ZMEMBERJID"])
+    )
+
+
 def remetente_de(msg, conversa_nome, grupo, membros, contatos):
     if msg["ZISFROMME"]:
         return "Você"
@@ -151,10 +174,7 @@ def remetente_de(msg, conversa_nome, grupo, membros, contatos):
         return conversa_nome
     membro = membros.get(msg["ZGROUPMEMBER"])
     if membro:
-        nome = membro["ZCONTACTNAME"] or membro["ZFIRSTNAME"] or nome_por_jid(membro["ZMEMBERJID"], contatos)
-        if nome:
-            return nome
-        return "+" + chave_jid(membro["ZMEMBERJID"])
+        return nome_membro(membro, contatos)
     return msg["ZPUSHNAME"] or "Desconhecido"
 
 
@@ -186,9 +206,19 @@ def importar():
             "INSERT INTO conversas (id, nome, jid, grupo) VALUES (?, ?, ?, ?)",
             (sessao["Z_PK"], nome, sessao["ZCONTACTJID"], int(grupo)),
         )
+        if grupo:
+            destino.executemany(
+                "INSERT INTO participantes (conversa_id, nome, admin, ativo) VALUES (?, ?, ?, ?)",
+                [
+                    (sessao["Z_PK"], nome_membro(m, contatos), int(bool(m["ZISADMIN"])), int(bool(m["ZISACTIVE"])))
+                    for m in membros.values()
+                    if m["ZCHATSESSION"] == sessao["Z_PK"]
+                ],
+            )
 
         mensagens = origem.execute(
-            """SELECT m.*, i.ZMEDIALOCALPATH, i.ZTITLE, i.ZMEDIAURL, i.ZLATITUDE, i.ZLONGITUDE, i.ZVCARDNAME
+            """SELECT m.*, i.ZMEDIALOCALPATH, i.ZTITLE, i.ZMEDIAURL, i.ZLATITUDE, i.ZLONGITUDE, i.ZVCARDNAME,
+                      i.ZMOVIEDURATION
                FROM ZWAMESSAGE m LEFT JOIN ZWAMEDIAITEM i ON i.Z_PK = m.ZMEDIAITEM
                WHERE m.ZCHATSESSION = ?
                ORDER BY m.ZSORT, m.Z_PK""",
@@ -200,13 +230,14 @@ def importar():
         for ordem, (msg, (data, aproximada)) in enumerate(zip(mensagens, datas)):
             tipo = TIPOS.get(msg["ZMESSAGETYPE"], "sistema")
             texto = msg["ZTEXT"]
-            midia = legenda = url = lat = lon = None
+            midia = legenda = url = lat = lon = duracao = None
             if tipo in ("imagem", "video", "audio"):
                 caminho = msg["ZMEDIALOCALPATH"]
                 if caminho:
                     midia = arquivos.get(caminho.rsplit("/", 1)[-1])
                 legenda = msg["ZTITLE"] or None
                 texto = texto or None
+                duracao = msg["ZMOVIEDURATION"] or None
             elif tipo == "link":
                 url = msg["ZMEDIAURL"] or texto
                 legenda = msg["ZTITLE"] or None
@@ -220,12 +251,12 @@ def importar():
             linhas.append((
                 sessao["Z_PK"], ordem, data, int(aproximada), int(bool(msg["ZISFROMME"])),
                 remetente_de(msg, nome, grupo, membros, contatos),
-                tipo, texto, midia, legenda, url, lat, lon,
+                tipo, texto, midia, legenda, url, lat, lon, duracao,
             ))
         destino.executemany(
             """INSERT INTO mensagens (conversa_id, ordem, data, data_aproximada, de_mim, remetente,
-                                      tipo, texto, midia, legenda, url, latitude, longitude)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                      tipo, texto, midia, legenda, url, latitude, longitude, duracao)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             linhas,
         )
         total_msgs += len(linhas)
@@ -244,6 +275,7 @@ def importar():
                               FROM mensagens m WHERE m.conversa_id = conversas.id
                               ORDER BY m.ordem DESC LIMIT 1)"""
     )
+    destino.execute("INSERT INTO busca (busca) VALUES ('rebuild')")
     destino.commit()
     destino.close()
     origem.close()

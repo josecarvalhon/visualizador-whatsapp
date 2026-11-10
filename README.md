@@ -8,14 +8,25 @@ Os dados ficam em **SQLite** (já incluso no macOS e no Python); não é preciso
 
 ## Funcionalidades
 
-- Lista das conversas (individuais e grupos), ordenadas pela mais recente, com prévia da última mensagem
-  e busca por nome.
+- Lista das conversas (individuais e grupos), ordenadas pela mais recente, com prévia da última mensagem.
+- **Busca em todas as conversas**, pelo campo da lateral: mostra as conversas pelo nome e as mensagens
+  que contêm as palavras digitadas (sem diferenciar maiúsculas nem acentos). Clicar num resultado abre a
+  conversa já na mensagem.
+- **Busca dentro da conversa aberta** (🔍 no topo): destaca as palavras e navega entre as ocorrências
+  com ▲ ▼ (ou `Enter` / `Shift+Enter`).
+- **Dados da conversa** (clique no nome, no topo): fotos, áudios, vídeos e links reunidos, cada um com
+  atalho para a mensagem, e a lista de participantes do grupo (com administradores e quem saiu).
+- **Estatísticas** numa aba própria (📊 na lateral, ou no painel de dados de uma conversa): números
+  gerais, mensagens por mês, quem mais fala ou as conversas mais ativas, e os dias e horários de maior
+  movimento.
 - Conversa em balões, como no WhatsApp: enviadas à direita (verde), recebidas à esquerda.
 - Separadores por dia e horário em cada mensagem.
 - Em grupos, nome de quem enviou, com uma cor por pessoa.
 - Fotos embutidas (clique para ampliar; `Esc` fecha) e player para áudios.
 - Links, localizações (abrem no OpenStreetMap), contatos compartilhados e eventos de grupo.
 - Aviso de "não disponível neste backup" quando a mídia citada não está na pasta.
+- Exportação da conversa em PDF: o botão **PDF** no topo da conversa abre uma versão para impressão
+  em nova aba; escolha **"Salvar como PDF"** como destino no diálogo de impressão.
 - Endereço próprio para cada conversa (`/#conversa=<id>`).
 - Tema claro e escuro, acompanhando o sistema; layout adaptado a telas estreitas.
 
@@ -92,10 +103,14 @@ visualizador-whatsapp/
 ├── importar.py         # backup do WhatsApp → data/whatsapp.db
 ├── app.py              # servidor Flask: página, API e mídia
 ├── templates/
-│   └── index.html      # esqueleto da página
+│   ├── index.html      # esqueleto da página
+│   ├── estatisticas.html  # página de estatísticas
+│   └── pdf.html        # versão da conversa para imprimir / salvar em PDF
 ├── static/
 │   ├── estilo.css      # visual no estilo do WhatsApp Web
-│   └── app.js          # lista, conversa, fotos, áudios
+│   ├── app.js          # lista, conversa, buscas, painel de dados
+│   ├── estatisticas.css
+│   └── estatisticas.js # cartões e gráficos (SVG feito à mão, sem bibliotecas)
 ├── requirements.txt
 └── data/               # banco gerado (fora do git)
 ```
@@ -117,7 +132,8 @@ Media/files/ ────────────┘                            
    - localiza o arquivo de cada foto ou áudio na pasta `Media/files`.
 2. **Servidor** — `app.py` lê `data/whatsapp.db` em modo somente leitura e entrega a página, a API JSON e
    os arquivos de mídia.
-3. **Interface** — `static/app.js` busca as conversas e desenha as mensagens.
+3. **Interface** — `static/app.js` busca as conversas e desenha as mensagens; `static/estatisticas.js`
+   monta a página de estatísticas.
 
 ### Banco gerado (`data/whatsapp.db`)
 
@@ -149,6 +165,11 @@ Media/files/ ────────────┘                            
 | `legenda` | Legenda da foto/vídeo ou título do link |
 | `url` | Endereço, para mensagens do tipo link |
 | `latitude`, `longitude` | Para mensagens de localização |
+| `duracao` | Duração em segundos de áudios e vídeos |
+
+**`participantes`**: membros de cada grupo (`conversa_id`, `nome`, `admin`, `ativo`).
+
+**`busca`**: índice de texto (FTS5) sobre `texto` e `legenda` das mensagens, que ignora maiúsculas e acentos.
 
 Como é SQLite comum, dá para consultar direto:
 
@@ -162,7 +183,11 @@ sqlite3 data/whatsapp.db "SELECT nome, total FROM conversas ORDER BY total DESC 
 |---|---|
 | `GET /` | Página do visualizador |
 | `GET /api/conversas` | Lista de conversas com mensagens, da mais recente para a mais antiga |
-| `GET /api/conversas/<id>/mensagens` | `{conversa, mensagens}` em ordem cronológica (404 se não existir) |
+| `GET /api/conversas/<id>/mensagens` | `{conversa, mensagens, participantes}` em ordem cronológica (404 se não existir) |
+| `GET /api/busca?q=<texto>[&conversa=<id>]` | Mensagens com todas as palavras (cada uma como começo de palavra) e um trecho com elas marcadas. Sem `conversa`: as 200 mais recentes do backup; com `conversa`: até 2000, em ordem cronológica |
+| `GET /api/estatisticas[?conversa=<id>]` | `{resumo, por_mes, ranking, grade}` do backup inteiro ou de uma conversa |
+| `GET /estatisticas[?conversa=<id>]` | Página de estatísticas |
+| `GET /conversas/<id>/pdf` | Página da conversa pronta para imprimir / salvar em PDF (404 se não existir) |
 | `GET /midia/<caminho>` | Arquivo de foto ou áudio da pasta do backup |
 
 ### De onde vêm os dados no backup do WhatsApp
@@ -213,6 +238,8 @@ Os áudios `.opus` tocam no Chrome e no Firefox; o Safari pode não tocá-los. O
 | Fotos aparecem como "não disponível" | O arquivo não veio no backup, ou `WHATSAPP_RECURSOS` do `app.py` aponta para outra pasta. |
 | Áudio não toca | Use Chrome ou Firefox (veja acima). |
 | Mudou o backup e nada mudou na tela | Rode `importar.py` de novo; ele recria `data/whatsapp.db` do zero. |
+| Erro `no such column: duracao` ou `no such table: busca` | O banco foi gerado por uma versão anterior. Rode `importar.py` de novo. |
+| Botões novos não aparecem | O navegador guardou a versão antiga dos arquivos: recarregue com `Cmd+Shift+R`. |
 
 ## Privacidade
 

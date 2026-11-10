@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Estatísticas — Visualizador de WhatsApp</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='estatisticas.css') }}">
+</head>
+<body class="pagina-estatisticas">
+  <header class="est-topo">
+    <div class="est-titulo">
+      <a href="/" class="est-voltar" title="Voltar ao visualizador">←</a>
+      <h1>Estatísticas</h1>
+    </div>
+    <label class="est-filtro">
+      <span>Conversa</span>
+      <select id="filtro-conversa">
+        <option value="">Todas as conversas</option>
+      </select>
+    </label>
+  </header>
+
+  <main class="est-conteudo" id="conteudo">
+    <p class="est-carregando">Carregando…</p>
+  </main>
+
+  <div class="dica" id="dica" hidden></div>
+
+  <template id="modelo">
+    <section class="cartoes" id="cartoes"></section>
+
+    <section class="painel-grafico">
+      <h2>Mensagens por mês</h2>
+      <div class="grafico-mes" id="grafico-mes"></div>
+      <details>
+        <summary>Ver como tabela</summary>
+        <div class="tabela-rolavel"><table id="tabela-mes"></table></div>
+      </details>
+    </section>
+
+    <div class="duas-colunas">
+      <section class="painel-grafico">
+        <h2 id="titulo-ranking"></h2>
+        <ol class="ranking" id="ranking"></ol>
+      </section>
+
+      <section class="painel-grafico">
+        <h2>Dias e horários mais ativos</h2>
+        <div class="grade-rolavel"><div class="grade" id="grade"></div></div>
+        <div class="legenda-grade" id="legenda-grade"></div>
+        <p class="nota" id="nota-grade"></p>
+        <details>
+          <summary>Ver como tabela</summary>
+          <div class="tabela-rolavel"><table id="tabela-grade"></table></div>
+        </details>
+      </section>
+    </div>
+
+    <p class="nota" id="nota-geral"></p>
+  </template>
+
+  <script src="{{ url_for('static', filename='estatisticas.js') }}"></script>
+</body>
+</html>
