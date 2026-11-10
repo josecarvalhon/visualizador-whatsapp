@@ -134,15 +134,24 @@ function conteudoMidia(m) {
     img.src = url;
     img.loading = "lazy";
     img.alt = m.legenda || "Foto";
-    img.addEventListener("click", () => ampliar(url));
+    img.addEventListener("click", () => abrirMidia(m));
     img.addEventListener("load", manterPosicao);
     frag.append(img);
   } else if (m.tipo === "audio" && url) {
+    const linha = el("div", "audio-linha");
     const audio = el("audio");
     audio.controls = true;
     audio.preload = "none";
     audio.src = url;
-    frag.append(audio);
+    const info = el("button", "icone info", "ⓘ");
+    info.title = "Metadados do áudio";
+    info.setAttribute("aria-label", "Metadados do áudio");
+    info.addEventListener("click", () => abrirMidia(m));
+    const resumo = el("div", "audio-resumo", "…");
+    resumo.dataset.id = m.id;
+    observadorResumo.observe(resumo);
+    linha.append(audio, info, resumo);
+    frag.append(linha);
   } else {
     const rotulos = { imagem: "📷 Foto", video: "🎥 Vídeo", audio: "🎤 Áudio" };
     const dur = duracao(m.duracao);
@@ -534,22 +543,159 @@ async function abrir(id, alvo = null) {
     if (!$("dados").hidden) desenharDados();
   }
 
-  // Veio de um resultado da busca geral: abre a busca da conversa já naquela mensagem
-  if (alvo) {
+  // Veio de um resultado de busca: abre a busca da conversa já naquela mensagem
+  if (alvo?.termo) {
     abrirBuscaChat(alvo.termo);
     buscarNaConversa(alvo.termo, alvo.mensagem);
+  } else if (alvo?.mensagem) {
+    irPara(alvo.mensagem);
   }
 }
 
-function ampliar(url) {
-  $("ampliacao-img").src = url;
-  $("ampliacao").hidden = false;
+// Endereço vindo da página de estatísticas: #conversa=<id>&mensagem=<id>&termo=<texto>
+function abrirPeloEndereco() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  const id = Number(p.get("conversa"));
+  if (!id) return;
+  const mensagem = Number(p.get("mensagem")) || null;
+  abrir(id, mensagem ? { mensagem, termo: p.get("termo") || "" } : null);
 }
 
-$("ampliacao").addEventListener("click", () => ($("ampliacao").hidden = true));
+window.addEventListener("hashchange", abrirPeloEndereco);
+
+/* Metadados de fotos e áudios */
+
+const cacheMetadados = new Map();
+
+function metadadosDe(id) {
+  if (!cacheMetadados.has(id)) {
+    cacheMetadados.set(id, fetch(`/api/mensagens/${id}/metadados`).then((r) => (r.ok ? r.json() : null)));
+  }
+  return cacheMetadados.get(id);
+}
+
+const curto = (v) => (v || "").split(" (")[0];
+
+// Resumo ao lado de cada áudio, carregado só quando ele aparece na tela
+const observadorResumo = new IntersectionObserver((entradas) => {
+  for (const e of entradas) {
+    if (!e.isIntersecting) continue;
+    observadorResumo.unobserve(e.target);
+    metadadosDe(Number(e.target.dataset.id)).then((d) => {
+      const a = d?.arquivo;
+      if (!a) {
+        e.target.textContent = "";
+        return;
+      }
+      const partes = [curto(a["Formato real"]), a["Canais"], a["Duração (arquivo)"], curto(a["Tamanho"])].filter(Boolean);
+      e.target.textContent = partes.join(" · ");
+      if (a["Formato real"].includes("extensão")) {
+        const aviso = el("span", "aviso-ext", " ⚠");
+        aviso.title = a["Formato real"];
+        e.target.append(aviso);
+      }
+    });
+  }
+}, { root: $("mensagens"), rootMargin: "200px" });
+
+function tabelaMetadados(titulo, dados) {
+  const s = el("section", "meta-secao");
+  s.append(el("h3", null, titulo));
+  const dl = el("dl");
+  for (const [k, v] of Object.entries(dados)) {
+    if (k.startsWith("_")) continue;
+    const dd = el("dd", /SHA|MD5/.test(k) ? "hash" : null, String(v));
+    dl.append(el("dt", null, k), dd);
+  }
+  s.append(dl);
+  return s;
+}
+
+function textoMetadados(d) {
+  const linhas = [];
+  for (const [titulo, dados] of [["WhatsApp", d.whatsapp], ["Arquivo", d.arquivo], ["EXIF", d.exif]]) {
+    if (!dados) continue;
+    linhas.push(`[${titulo}]`);
+    for (const [k, v] of Object.entries(dados)) if (!k.startsWith("_")) linhas.push(`${k}: ${v}`);
+  }
+  return linhas.join("\n");
+}
+
+async function abrirMidia(m) {
+  const url = urlMidia(m.midia);
+  const area = $("ampliacao-midia");
+  area.replaceChildren();
+  if (m.tipo === "imagem") {
+    const img = el("img");
+    img.src = url;
+    img.alt = m.legenda || "Foto";
+    area.append(img);
+  } else {
+    const audio = el("audio");
+    audio.controls = true;
+    audio.src = url;
+    area.append(el("div", "ampliacao-audio", "🎤"), audio);
+  }
+  const painel = $("metadados");
+  painel.replaceChildren(el("h2", null, "Metadados"), el("p", "carregando", "Carregando…"));
+  $("ampliacao").hidden = false;
+
+  const d = await metadadosDe(m.id);
+  painel.replaceChildren(el("h2", null, "Metadados"));
+  if (!d) {
+    painel.append(el("p", "dados-nota", "Não foi possível ler os metadados deste arquivo."));
+    return;
+  }
+  painel.append(tabelaMetadados("WhatsApp", d.whatsapp));
+  if (d.arquivo) painel.append(tabelaMetadados("Arquivo", d.arquivo));
+  else painel.append(el("p", "dados-nota", "O arquivo não está na pasta do backup."));
+  if (m.tipo === "imagem" && d.arquivo) {
+    if (d.exif && Object.keys(d.exif).length) {
+      const s = tabelaMetadados("EXIF", d.exif);
+      if (d.exif._gps) {
+        const [lat, lon] = d.exif._gps;
+        const a = el("a", null, "Ver local no mapa");
+        a.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        s.append(a);
+      }
+      painel.append(s);
+    } else {
+      const s = el("section", "meta-secao");
+      s.append(el("h3", null, "EXIF"), el("p", "dados-nota", d.exif
+        ? "O arquivo tem um bloco EXIF, mas sem câmera, data da foto nem GPS: o WhatsApp remove esses dados ao enviar."
+        : "O arquivo não tem EXIF (câmera, data da foto, GPS): o WhatsApp remove esses dados ao enviar."));
+      painel.append(s);
+    }
+  }
+  const acoes = el("div", "meta-acoes");
+  const copiar = el("button", "botao-topo", "Copiar metadados");
+  copiar.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(textoMetadados(d));
+    copiar.textContent = "Copiado ✓";
+    setTimeout(() => (copiar.textContent = "Copiar metadados"), 1500);
+  });
+  const baixar = el("a", "botao-topo", "Baixar arquivo");
+  baixar.href = url;
+  baixar.download = d.arquivo?.Arquivo || "";
+  acoes.append(copiar, baixar);
+  painel.append(acoes);
+}
+
+function fecharMidia() {
+  $("ampliacao").hidden = true;
+  $("ampliacao-midia").querySelectorAll("audio").forEach((a) => a.pause());
+  $("ampliacao-midia").replaceChildren();
+}
+
+$("ampliacao").addEventListener("click", (e) => {
+  if (e.target === $("ampliacao") || e.target === $("ampliacao-midia")) fecharMidia();
+});
+$("fechar-ampliacao").addEventListener("click", fecharMidia);
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
-  if (!$("ampliacao").hidden) $("ampliacao").hidden = true;
+  if (!$("ampliacao").hidden) fecharMidia();
   else if (!$("dados").hidden) fecharDados();
 });
 $("voltar").addEventListener("click", () => {
@@ -562,6 +708,5 @@ $("voltar").addEventListener("click", () => {
   conversas = await (await fetch("/api/conversas")).json();
   $("contador").textContent = `${conversas.length} conversas`;
   desenharLista();
-  const pedida = Number(new URLSearchParams(location.hash.slice(1)).get("conversa"));
-  if (pedida) abrir(pedida);
+  abrirPeloEndereco();
 })();

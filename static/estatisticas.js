@@ -265,6 +265,170 @@ function desenharGrade(grade, total) {
   }
 }
 
+/* Buscador: texto livre ou CPF, CNPJ e contas bancárias */
+
+const busca = { modo: "texto", resultados: null, termo: "", seq: 0 };
+const AJUDA = {
+  texto: "Encontra mensagens com todas as palavras digitadas, sem diferenciar maiúsculas nem acentos. " +
+    "Cada palavra vale como começo de palavra: \"mono\" encontra \"monografia\". Lista até 5.000 ocorrências, das mais recentes para as mais antigas.",
+  documentos: "Procura CPF e CNPJ (no formato oficial ou só com números; só com números, entram apenas os que têm " +
+    "dígitos verificadores válidos, para não confundir com telefones) e dados bancários: agência, conta, c/c, poupança " +
+    "e o nome do banco, quando aparece na mesma mensagem.",
+};
+
+function trechoMarcado(trecho) {
+  const frag = document.createDocumentFragment();
+  (trecho || "").split(/\[\[([\s\S]*?)\]\]/).forEach((parte, i) => {
+    if (parte) frag.append(i % 2 ? el("mark", null, parte) : document.createTextNode(parte));
+  });
+  return frag;
+}
+
+const dataResultado = (r) => (r.data ? (r.data_aproximada ? "~" : "") + fmtCurta.format(new Date(r.data * 1000)) : "");
+
+function linkMensagem(r) {
+  const p = new URLSearchParams({ conversa: r.conversa_id, mensagem: r.id });
+  if (busca.modo === "texto") p.set("termo", busca.termo);
+  return `/#${p}`;
+}
+
+function trocarModo(modo) {
+  busca.modo = modo;
+  busca.resultados = null;
+  document.querySelectorAll(".aba").forEach((a) => {
+    a.classList.toggle("ativa", a.dataset.modo === modo);
+    a.setAttribute("aria-selected", a.dataset.modo === modo);
+  });
+  $("termo").hidden = modo !== "texto";
+  $("filtro-tipos").hidden = modo === "texto";
+  $("botao-buscar").textContent = modo === "texto" ? "Buscar" : "Localizar";
+  $("ajuda-busca").textContent = AJUDA[modo];
+  $("resultado-busca").replaceChildren();
+  if (modo === "texto") $("termo").focus();
+}
+
+async function buscar() {
+  const conversa = $("filtro-conversa").value;
+  const termo = $("termo").value.trim();
+  if (busca.modo === "texto" && !termo) return $("termo").focus();
+  const seq = ++busca.seq;
+  const area = $("resultado-busca");
+  area.replaceChildren(el("p", "est-carregando", "Procurando…"));
+  const p = new URLSearchParams();
+  if (conversa) p.set("conversa", conversa);
+  let url;
+  if (busca.modo === "texto") {
+    p.set("q", termo);
+    p.set("limite", "5000");
+    url = `/api/busca?${p}`;
+  } else {
+    url = `/api/localizar?${p}`;
+  }
+  const resultados = await (await fetch(url)).json();
+  if (seq !== busca.seq) return;
+  busca.resultados = resultados;
+  busca.termo = termo;
+  desenharResultados();
+}
+
+function filtrados() {
+  if (busca.modo === "texto") return busca.resultados;
+  const tipos = new Set([...document.querySelectorAll("#filtro-tipos input[value]:checked")].map((c) => c.value));
+  const soValidos = $("so-validos").checked;
+  return busca.resultados.filter((r) => tipos.has(r.tipo) && !(soValidos && r.valido === false));
+}
+
+function desenharResultados() {
+  const area = $("resultado-busca");
+  area.replaceChildren();
+  if (!busca.resultados) return;
+  const lista = filtrados();
+  const docs = busca.modo === "documentos";
+  const conversas = new Set(lista.map((r) => r.conversa_id)).size;
+
+  const topo = el("div", "resultado-topo");
+  topo.append(el("strong", null, lista.length
+    ? `${plural(lista.length, "ocorrência", "ocorrências")} em ${plural(conversas, "conversa", "conversas")}` +
+      (busca.modo === "texto" && lista.length >= 5000 ? " (limite de 5.000 atingido)" : "")
+    : "Nada encontrado."));
+  if (lista.length) {
+    const csv = el("button", "botao-secundario", "Baixar CSV");
+    csv.addEventListener("click", () => baixarCsv(lista));
+    topo.append(csv);
+  }
+  area.append(topo);
+  if (!lista.length) return;
+
+  if (docs) {
+    // Resumo por valor: o mesmo CPF ou conta pode aparecer em várias mensagens
+    const porValor = new Map();
+    for (const r of lista) {
+      const k = `${r.tipo}|${r.valor}`;
+      porValor.set(k, (porValor.get(k) || 0) + 1);
+    }
+    area.append(el("p", "nota", `${plural(porValor.size, "valor diferente", "valores diferentes")}.`));
+  }
+
+  const tabela = el("table", "tabela-resultados");
+  const cab = el("tr");
+  const colunas = ["Data", "Conversa", "Remetente", ...(docs ? ["Tipo", "Valor"] : []), "Trecho", ""];
+  for (const c of colunas) cab.append(el("th", null, c));
+  tabela.append(cab);
+  for (const r of lista) {
+    const tr = el("tr");
+    tr.append(el("td", "nowrap", dataResultado(r)), el("td", null, r.conversa_nome), el("td", null, r.remetente || ""));
+    if (docs) {
+      tr.append(el("td", "nowrap", r.tipo));
+      const valor = el("td", "valor", r.valor);
+      if (r.valido === false) {
+        const aviso = el("span", "invalido", " ⚠ dígitos não conferem");
+        valor.append(aviso);
+      }
+      tr.append(valor);
+    }
+    const trecho = el("td", "trecho");
+    trecho.append(trechoMarcado(r.trecho));
+    const abrir = el("a", "botao-secundario", "Abrir");
+    abrir.href = linkMensagem(r);
+    abrir.target = "visualizador";
+    abrir.title = "Abrir a conversa nesta mensagem";
+    const acao = el("td");
+    acao.append(abrir);
+    tr.append(trecho, acao);
+    tabela.append(tr);
+  }
+  const rolavel = el("div", "tabela-rolavel tabela-grande");
+  rolavel.append(tabela);
+  area.append(rolavel);
+}
+
+function baixarCsv(lista) {
+  const docs = busca.modo === "documentos";
+  const cab = ["data", "data_aproximada", "conversa", "remetente", ...(docs ? ["tipo", "valor", "digitos_validos"] : []), "trecho", "mensagem_id"];
+  const celula = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
+  const linhas = lista.map((r) => [
+    r.data ? new Date(r.data * 1000).toLocaleString("pt-BR") : "", r.data_aproximada ? "sim" : "não", r.conversa_nome, r.remetente,
+    ...(docs ? [r.tipo, r.valor, r.valido == null ? "" : r.valido ? "sim" : "não"] : []),
+    (r.trecho || "").replace(/\[\[|\]\]/g, ""), r.id,
+  ].map(celula).join(";"));
+  // BOM para o Excel reconhecer os acentos; ";" é o separador do Excel em português
+  const blob = new Blob(["\ufeff" + [cab.join(";"), ...linhas].join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = el("a");
+  a.href = URL.createObjectURL(blob);
+  const nome = docs ? "documentos-e-contas" : `busca-${busca.termo.replace(/[^\p{L}\p{N}]+/gu, "-")}`;
+  a.download = `${nome}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+document.querySelectorAll(".aba").forEach((a) => a.addEventListener("click", () => trocarModo(a.dataset.modo)));
+$("form-busca").addEventListener("submit", (e) => {
+  e.preventDefault();
+  buscar();
+});
+$("filtro-tipos").addEventListener("change", desenharResultados);
+trocarModo("texto");
+
 /* Carregamento e filtro */
 
 let mesesAtuais = [];
@@ -305,6 +469,7 @@ function escolher(id) {
   history.replaceState(null, "", url);
   window.scrollTo(0, 0);
   carregar();
+  if (busca.resultados) buscar(); // refaz a busca no novo escopo
 }
 
 $("filtro-conversa").addEventListener("change", (e) => escolher(e.target.value));

@@ -21,6 +21,27 @@
     </label>
   </header>
 
+  <section class="est-conteudo est-buscador">
+    <div class="painel-grafico">
+      <div class="abas" role="tablist">
+        <button class="aba ativa" role="tab" aria-selected="true" data-modo="texto">🔍 Busca textual</button>
+        <button class="aba" role="tab" aria-selected="false" data-modo="documentos">🪪 CPF, CNPJ e contas bancárias</button>
+      </div>
+      <form class="busca-linha" id="form-busca">
+        <input id="termo" type="search" placeholder="Palavras a procurar em qualquer mensagem" autocomplete="off">
+        <button type="submit" class="botao" id="botao-buscar">Buscar</button>
+      </form>
+      <div class="filtro-tipos" id="filtro-tipos" hidden>
+        <label><input type="checkbox" value="CPF" checked> CPF</label>
+        <label><input type="checkbox" value="CNPJ" checked> CNPJ</label>
+        <label><input type="checkbox" value="Conta bancária" checked> Contas bancárias</label>
+        <label><input type="checkbox" id="so-validos"> Só CPF/CNPJ com dígitos verificadores válidos</label>
+      </div>
+      <p class="nota" id="ajuda-busca"></p>
+      <div id="resultado-busca"></div>
+    </div>
+  </section>
+
   <main class="est-conteudo" id="conteudo">
     <p class="est-carregando">Carregando…</p>
   </main>

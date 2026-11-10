@@ -105,6 +105,69 @@ th, td { padding: 4px 10px; border-bottom: 1px solid var(--borda); text-align: l
 th { position: sticky; top: 0; background: var(--lateral); color: var(--texto-suave); font-weight: 600; }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
+/* Buscador */
+.est-buscador { padding-bottom: 0; }
+.abas { display: flex; flex-wrap: wrap; gap: 4px; margin: -4px 0 14px; border-bottom: 1px solid var(--borda); }
+.aba {
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.aba.ativa { color: var(--texto); border-bottom-color: var(--destaque); font-weight: 600; }
+.busca-linha { display: flex; gap: 8px; }
+.busca-linha input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 14px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--topo);
+  color: var(--texto);
+  font: inherit;
+  font-size: 15px;
+}
+.busca-linha input[hidden] { display: none; }
+.botao {
+  padding: 9px 20px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--destaque);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.botao-secundario {
+  display: inline-block;
+  padding: 4px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 14px;
+  background: var(--lateral);
+  color: var(--texto);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.botao-secundario:hover { border-color: var(--destaque); }
+.filtro-tipos { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 13.5px; }
+.filtro-tipos[hidden] { display: none; }
+.filtro-tipos input { accent-color: var(--destaque); }
+.resultado-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.tabela-grande { max-height: 70vh; }
+.tabela-resultados { width: 100%; }
+.tabela-resultados td { vertical-align: top; }
+.tabela-resultados .trecho { min-width: 280px; white-space: pre-wrap; }
+.tabela-resultados .valor { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.tabela-resultados .invalido { color: var(--texto-suave); font-weight: 400; font-size: 11.5px; }
+.nowrap { white-space: nowrap; }
+
 /* Dica */
 .dica {
   position: fixed;

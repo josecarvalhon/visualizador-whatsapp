@@ -19,10 +19,21 @@ Os dados ficam em **SQLite** (já incluso no macOS e no Python); não é preciso
 - **Estatísticas** numa aba própria (📊 na lateral, ou no painel de dados de uma conversa): números
   gerais, mensagens por mês, quem mais fala ou as conversas mais ativas, e os dias e horários de maior
   movimento.
+- **Buscador da página de estatísticas**, no backup inteiro ou na conversa escolhida no topo, com
+  exportação para CSV e um botão para abrir cada mensagem no visualizador:
+  - **Busca textual**: lista todas as ocorrências (até 5.000) com o trecho de cada uma.
+  - **CPF, CNPJ e contas bancárias**: CPF e CNPJ no formato oficial (indicando se os dígitos verificadores
+    conferem) ou só com números (apenas os válidos, para não confundir com telefones), e dados bancários
+    (agência, conta, c/c, poupança e o banco, quando citado).
 - Conversa em balões, como no WhatsApp: enviadas à direita (verde), recebidas à esquerda.
 - Separadores por dia e horário em cada mensagem.
 - Em grupos, nome de quem enviou, com uma cor por pessoa.
-- Fotos embutidas (clique para ampliar; `Esc` fecha) e player para áudios.
+- Fotos embutidas e player para áudios.
+- **Metadados de fotos e áudios**: ao abrir uma foto, um painel ao lado mostra os dados do WhatsApp (quem
+  enviou, quando, em que conversa) e os do arquivo: formato real, tamanho, dimensões, EXIF (câmera, data da
+  foto, GPS, quando existem), datas do arquivo e os hashes SHA-256 e MD5. Ao lado de cada áudio aparece um
+  resumo (formato, canais, duração, tamanho), e o botão ⓘ abre o painel completo. Dá para copiar os
+  metadados e baixar o arquivo.
 - Links, localizações (abrem no OpenStreetMap), contatos compartilhados e eventos de grupo.
 - Aviso de "não disponível neste backup" quando a mídia citada não está na pasta.
 - Exportação da conversa em PDF: o botão **PDF** no topo da conversa abre uma versão para impressão
@@ -102,6 +113,8 @@ visualizador-whatsapp/
 ├── config.py           # caminhos (backup, banco gerado)
 ├── importar.py         # backup do WhatsApp → data/whatsapp.db
 ├── app.py              # servidor Flask: página, API e mídia
+├── metadados.py        # lê formato, dimensões, EXIF, áudio e hashes dos arquivos de mídia
+├── localizar.py        # encontra CPF, CNPJ e dados bancários no texto
 ├── templates/
 │   ├── index.html      # esqueleto da página
 │   ├── estatisticas.html  # página de estatísticas
@@ -184,7 +197,9 @@ sqlite3 data/whatsapp.db "SELECT nome, total FROM conversas ORDER BY total DESC 
 | `GET /` | Página do visualizador |
 | `GET /api/conversas` | Lista de conversas com mensagens, da mais recente para a mais antiga |
 | `GET /api/conversas/<id>/mensagens` | `{conversa, mensagens, participantes}` em ordem cronológica (404 se não existir) |
-| `GET /api/busca?q=<texto>[&conversa=<id>]` | Mensagens com todas as palavras (cada uma como começo de palavra) e um trecho com elas marcadas. Sem `conversa`: as 200 mais recentes do backup; com `conversa`: até 2000, em ordem cronológica |
+| `GET /api/busca?q=<texto>[&conversa=<id>][&limite=<n>]` | Mensagens com todas as palavras (cada uma como começo de palavra) e um trecho com elas marcadas. Sem `conversa`: as 200 mais recentes do backup; com `conversa`: até 2000, em ordem cronológica. `limite` (até 5000) pede a lista completa, com trechos maiores |
+| `GET /api/localizar[?conversa=<id>]` | CPF, CNPJ e dados bancários encontrados nas mensagens, com o trecho de cada um |
+| `GET /api/mensagens/<id>/metadados` | `{whatsapp, arquivo, exif}` de uma foto ou áudio (404 se a mensagem não tiver arquivo) |
 | `GET /api/estatisticas[?conversa=<id>]` | `{resumo, por_mes, ranking, grade}` do backup inteiro ou de uma conversa |
 | `GET /estatisticas[?conversa=<id>]` | Página de estatísticas |
 | `GET /conversas/<id>/pdf` | Página da conversa pronta para imprimir / salvar em PDF (404 se não existir) |
@@ -224,6 +239,11 @@ O banco cita cerca de 3.000 arquivos, mas só 229 vieram na pasta (61 fotos e 16
 vídeo). As mídias ausentes aparecem como "não disponível neste backup". Na pasta, os arquivos estão em
 `Image/` e `Audio/`, e não no caminho original gravado no banco; por isso são localizados pelo nome.
 
+### Extensão diferente do formato real
+
+Os 39 áudios `.aac` do backup são, na verdade, Ogg Opus, e 3 fotos `.jpg` são PNG. O painel de metadados
+mostra o formato real (lido da assinatura do arquivo) e avisa quando a extensão não corresponde.
+
 ### Áudios `.opus` no Safari
 
 Os áudios `.opus` tocam no Chrome e no Firefox; o Safari pode não tocá-los. Os `.aac` tocam em todos.
@@ -239,6 +259,7 @@ Os áudios `.opus` tocam no Chrome e no Firefox; o Safari pode não tocá-los. O
 | Áudio não toca | Use Chrome ou Firefox (veja acima). |
 | Mudou o backup e nada mudou na tela | Rode `importar.py` de novo; ele recria `data/whatsapp.db` do zero. |
 | Erro `no such column: duracao` ou `no such table: busca` | O banco foi gerado por uma versão anterior. Rode `importar.py` de novo. |
+| Página nova quebrada ou sem os botões novos depois de atualizar o código | Reinicie o `app.py` (ele guarda os modelos HTML na memória) e recarregue com `Cmd+Shift+R`. |
 | Botões novos não aparecem | O navegador guardou a versão antiga dos arquivos: recarregue com `Cmd+Shift+R`. |
 
 ## Privacidade
